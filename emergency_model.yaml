@@ -1,0 +1,73 @@
+name: "SheSafe Earthquake Incident Model"
+description: "Semantic model for analyzing earthquake-related incident reports, prioritizing rescues, and identifying critical needs."
+https://github.com/aneesa2023/shesafe_backend/tree/main
+tables:
+  - name: incidents
+    description: "Reported individuals affected by an earthquake event."
+    base_table:
+      database: CORTEX_ANALYST_DEMO
+      schema: SHESAFE
+      table: INCIDENTS
+    primary_key:
+      columns:
+        - report_id
+    dimensions:
+      - name: report_id
+        expr: report_id
+        data_type: number
+      - name: name
+        expr: name
+        data_type: varchar
+      - name: age
+        expr: age
+        data_type: number
+      - name: gender
+        expr: gender
+        data_type: varchar
+      - name: location
+        expr: location
+        data_type: varchar
+      - name: coordinates
+        expr: coordinates
+        data_type: varchar
+      - name: time_reported
+        expr: time_reported
+        data_type: timestamp
+      - name: injury_severity
+        expr: injury_severity
+        data_type: varchar
+      - name: trapped
+        expr: trapped
+        data_type: boolean
+      - name: oxygen_needed
+        expr: oxygen_needed
+        data_type: boolean
+      - name: notes
+        expr: notes
+        data_type: varchar
+
+    measures:
+      - name: average_priority
+        expr: avg(priority_score)
+        description: "Average priority score across all reports."
+        data_type: number
+
+      - name: critical_cases
+        expr: count_if(injury_severity = 'severe')
+        description: "Number of people with severe injuries."
+        data_type: number
+
+      - name: trapped_count
+        expr: count_if(trapped)
+        description: "Total number of trapped individuals."
+        data_type: number
+
+      - name: oxygen_needed_count
+        expr: count_if(oxygen_needed)
+        description: "Total number of people requiring oxygen."
+        data_type: number
+
+      - name: high_priority_cases
+        expr: count_if(priority_score >= 8)
+        description: "Number of incidents classified as high priority."
+        data_type: number
