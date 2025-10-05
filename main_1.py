@@ -55,6 +55,13 @@ class Incident(Base):
     text = Column(Text, nullable=False)
     type = Column(String, nullable=False)  # "text" or "audio"
 
+# models.py or inside the same file (below Incident class)
+class Conversation(Base):
+    __tablename__ = "conversations"
+    id = Column(Integer, primary_key=True, index=True)
+    incident_id = Column(Integer, nullable=False)
+    sender = Column(String, nullable=False)  # "user" or "ai"
+    text = Column(Text, nullable=False)
 Base.metadata.create_all(engine)
 
 # ---------- FastAPI App ----------
@@ -349,3 +356,56 @@ async def follow_up_incident(payload: dict):
         return {"status": "success", "answer": answer}
     except Exception as e:
         return {"status": "error", "message": str(e)}
+    
+@app.post("/chat")
+async def chat_with_gemini(payload: dict):
+    try:
+        user_message = payload.get("message", "")
+        history = payload.get("history", [])
+        incident_id = payload.get("incidentId")
+
+        if not user_message:
+            return JSONResponse({"status": "error", "message": "Message is required"}, status_code=400)
+
+        # Format chat history for context
+        chat_context = ""
+        for turn in history[-6:]:
+            chat_context += f"{turn['sender'].capitalize()}: {turn['text']}\n"
+        chat_context += f"User: {user_message}\n"
+
+        prompt = f"""
+        You are an empathetic AI safety assistant for women. 
+        Be clear, kind, and supportive. 
+        Respond conversationally, not as a list.
+
+        Conversation so far:
+        {chat_context}
+
+        Respond in a short, natural message.
+        """
+
+        response = gemini_model.generate_content(prompt)
+        ai_text = response.text.strip()
+
+        # --- Store messages in database ---
+        db = SessionLocal()
+        if incident_id:
+            db.add(Conversation(incident_id=incident_id, sender="user", text=user_message))
+            db.add(Conversation(incident_id=incident_id, sender="ai", text=ai_text))
+            db.commit()
+        db.close()
+
+        return {"status": "success", "reply": ai_text}
+
+    except Exception as e:
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+    
+@app.get("/incident/{incident_id}/chat")
+async def get_incident_chat(incident_id: int):
+    db = SessionLocal()
+    messages = db.query(Conversation).filter(Conversation.incident_id == incident_id).all()
+    db.close()
+    return [
+        {"sender": msg.sender, "text": msg.text, "id": msg.id}
+        for msg in messages
+    ]
