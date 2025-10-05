@@ -316,3 +316,36 @@ async def analyze_incident_text(text: str = Form(...)):
 
     except Exception as e:
         return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+    
+@app.post("/incident/follow-up")
+async def follow_up_incident(payload: dict):
+    incident_id = payload.get("incidentId")
+    follow_up_text = payload.get("followUp")
+    conversation = payload.get("conversation", [])
+
+    db = SessionLocal()
+    record = db.query(Incident).filter(Incident.id == incident_id).first()
+    db.close()
+    if not record:
+        return {"status": "error", "message": "Incident not found"}
+
+    # Combine previous AI + user conversation for context
+    context_text = record.text + "\n"
+    for turn in conversation:
+        context_text += f"User: {turn['user']}\nAI: {turn['ai']}\n"
+    context_text += f"User follow-up: {follow_up_text}\n"
+
+    try:
+        prompt = f"""
+        You are an AI safety assistant. Continue the conversation based on previous incident analysis.
+
+        Context: {context_text}
+
+        Provide a clear and actionable answer to the follow-up.
+        """
+        response = gemini_model.generate_content(prompt)
+        answer = response.text
+
+        return {"status": "success", "answer": answer}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
